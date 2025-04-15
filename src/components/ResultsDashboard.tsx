@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,8 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import PaperCard from "./PaperCard";
+import LiteratureReview from "./LiteratureReview";
+import { getLiteratureReviews } from "@/services/literatureReviewService";
 import { ChevronDown, SortAsc, SortDesc } from "lucide-react";
 
 interface Paper {
@@ -37,6 +39,8 @@ interface ResultsDashboardProps {
   isLoading?: boolean;
   mode?: "business" | "scientific";
   totalResults?: number;
+  searchQuery?: string;
+  userId?: string;
 }
 
 const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
@@ -117,18 +121,51 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   isLoading = false,
   mode = "business",
   totalResults = 243,
+  searchQuery = "",
+  userId = "user-1",
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [resultsPerPage, setResultsPerPage] = useState("10");
   const [sortBy, setSortBy] = useState("relevance");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [literatureReviews, setLiteratureReviews] = useState([]);
+  const [isLoadingLiterature, setIsLoadingLiterature] = useState(false);
 
   const toggleSortOrder = () => {
     setSortOrder(sortOrder === "asc" ? "desc" : "asc");
   };
 
+  // Fetch literature reviews when search query changes
+  useEffect(() => {
+    const fetchLiteratureReviews = async () => {
+      if (!searchQuery) return;
+
+      setIsLoadingLiterature(true);
+      try {
+        const reviews = await getLiteratureReviews(searchQuery, userId, mode);
+        setLiteratureReviews(reviews);
+      } catch (error) {
+        console.error("Error fetching literature reviews:", error);
+        setLiteratureReviews([]);
+      } finally {
+        setIsLoadingLiterature(false);
+      }
+    };
+
+    fetchLiteratureReviews();
+  }, [searchQuery, userId, mode]);
+
   return (
     <div className="w-full bg-background p-4">
+      {/* Literature Review Section */}
+      {searchQuery && (
+        <LiteratureReview
+          searchQuery={searchQuery}
+          isLoading={isLoadingLiterature}
+          items={literatureReviews}
+          mode={mode}
+        />
+      )}
       <div className="flex justify-between items-center mb-6">
         <div className="text-sm text-muted-foreground">
           Showing <span className="font-medium">{papers.length}</span> of{" "}
@@ -192,7 +229,20 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
       ) : papers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {papers.map((paper) => (
-            <PaperCard key={paper.id} paper={paper} mode={mode} />
+            <PaperCard
+              key={paper.id}
+              title={paper.title}
+              authors={paper.authors.map((author, index) => ({
+                name: author,
+                id: `${paper.id}-author-${index}`,
+              }))}
+              journal={paper.journal}
+              year={new Date(paper.publicationDate).getFullYear()}
+              abstract={paper.abstract}
+              citations={paper.citations}
+              mode={mode}
+              onView={() => window.open(paper.url, "_blank")}
+            />
           ))}
         </div>
       ) : (
